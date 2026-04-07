@@ -36,6 +36,8 @@ if not _PAI_LOCAL_DIR:
         "(expected PAI dataset root, e.g. /path/to/PAI_mini)."
     )
 
+_RL_CLIP_INDEX = os.getenv("ALPAMAYO_RL_CLIP_INDEX", "clip_index_mini.parquet")
+
 # ---------------------------------------------------------------------------
 # vLLM registration
 # ---------------------------------------------------------------------------
@@ -85,10 +87,10 @@ REASONING_VLA_SPEC = ModelSpec(
     data_packer_cls=RVLADataPacker,
     reward_fn=_reasoning_vla_reward_fn,
     hydra_config_path="hydra_configs",
-    hydra_config_name="alpamayo1_5_rvla_rl_pai",
+    hydra_config_name=os.getenv("ALPAMAYO_RL_HYDRA_CONFIG", "alpamayo1_5_rvla_rl_pai"),
     hydra_overrides=[
         f"data.train.dataset.local_dir={_PAI_LOCAL_DIR}",
-        "data.train.dataset.clip_index_metadata=clip_index_mini.parquet",
+        f"data.train.dataset.clip_index_metadata={_RL_CLIP_INDEX}",
         "data.train.dataset.features_metadata=features.csv",
         "data.train.dataset.use_default_keyframe=True",
     ],

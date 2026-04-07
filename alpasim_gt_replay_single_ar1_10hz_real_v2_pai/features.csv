@@ -1,0 +1,9 @@
+feature,directory,chunk_path,clip_files_in_zip
+egomotion,labels,labels/egomotion/egomotion.chunk_{chunk_id:04d}.zip,"{""egomotion"": ""{clip_id}.egomotion.parquet""}"
+camera_intrinsics,calibration,calibration/camera_intrinsics/camera_intrinsics.chunk_{chunk_id:04d}.parquet,
+sensor_extrinsics,calibration,calibration/sensor_extrinsics/sensor_extrinsics.chunk_{chunk_id:04d}.parquet,
+vehicle_dimensions,calibration,calibration/vehicle_dimensions/vehicle_dimensions.chunk_{chunk_id:04d}.parquet,
+camera_cross_left_120fov,camera,camera/camera_cross_left_120fov/camera_cross_left_120fov.chunk_{chunk_id:04d}.zip,"{""video"": ""{clip_id}.camera_cross_left_120fov.mp4"", ""frame_timestamps"": ""{clip_id}.camera_cross_left_120fov.timestamps.parquet"", ""blurred_boxes"": ""{clip_id}.camera_cross_left_120fov.blurred_boxes.parquet""}"
+camera_front_wide_120fov,camera,camera/camera_front_wide_120fov/camera_front_wide_120fov.chunk_{chunk_id:04d}.zip,"{""video"": ""{clip_id}.camera_front_wide_120fov.mp4"", ""frame_timestamps"": ""{clip_id}.camera_front_wide_120fov.timestamps.parquet"", ""blurred_boxes"": ""{clip_id}.camera_front_wide_120fov.blurred_boxes.parquet""}"
+camera_cross_right_120fov,camera,camera/camera_cross_right_120fov/camera_cross_right_120fov.chunk_{chunk_id:04d}.zip,"{""video"": ""{clip_id}.camera_cross_right_120fov.mp4"", ""frame_timestamps"": ""{clip_id}.camera_cross_right_120fov.timestamps.parquet"", ""blurred_boxes"": ""{clip_id}.camera_cross_right_120fov.blurred_boxes.parquet""}"
+camera_front_tele_30fov,camera,camera/camera_front_tele_30fov/camera_front_tele_30fov.chunk_{chunk_id:04d}.zip,"{""video"": ""{clip_id}.camera_front_tele_30fov.mp4"", ""frame_timestamps"": ""{clip_id}.camera_front_tele_30fov.timestamps.parquet"", ""blurred_boxes"": ""{clip_id}.camera_front_tele_30fov.blurred_boxes.parquet""}"

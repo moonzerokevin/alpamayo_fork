@@ -14,7 +14,8 @@
 - 上游官方边界：
   - SFT 文档验证环境是 `8x H100 80G`
   - RL 本地验证文档要求至少 `5x 80G GPU`
-- 因此这里新增的单卡脚本属于“最小可行 / 实验配置”，目标是先跑通而不是复现官方吞吐。
+- 单卡（或 1×policy + 1×rollout）上的 RL 在 10B 规模下易在 policy 前向 OOM，**不作为可行验证路径**。
+- 要做「RL 是否跑通」的验证，请用 **`finetune/rl/README.md` 推荐拓扑**（多卡 FSDP policy + 独立 rollout），数据上只取 **1 条 clip overfit** 即可缩短时间（见下方 `prepare_rl_overfit_one_scene.sh` / `run_rl_overfit_one_scene.sh`）。
 
 ## 目录与脚本
 
@@ -24,14 +25,17 @@
 - 单卡 Stage 1：`scripts/run_sft_stage1_single_h100.sh`
 - 单卡 Stage 2：`scripts/run_sft_stage2_single_h100.sh`
 - 单卡 Stage 2 评估：`scripts/eval_sft_stage2_single_h100.sh`
-- 单卡 RL 试跑：`scripts/run_rl_single_h100_experimental.sh`
+- RL 单场景 overfit 索引：`scripts/prepare_rl_overfit_one_scene.sh`
+- RL overfit 试跑（多卡，对齐上游 README）：`scripts/run_rl_overfit_one_scene.sh`
+- （弃用）单卡 RL：`scripts/run_rl_single_h100_experimental.sh`
 - 导出 RL checkpoint：`scripts/export_rl_checkpoint.sh`
 
 新增 Hydra/TOML 配置：
 
 - `finetune/sft/configs/sft_stage1_single_h100.yaml`
 - `finetune/sft/configs/sft_stage2_single_h100.yaml`
-- `finetune/rl/toml/alpamayo_rvla_rl_single_h100_experimental.toml`
+- `finetune/rl/toml/alpamayo_rvla_rl_overfit_one_scene.toml`
+- （弃用）`finetune/rl/toml/alpamayo_rvla_rl_single_h100_experimental.toml`
 
 ## 1. 初始化环境
 
@@ -49,6 +53,7 @@ source scripts/setup_local_env.sh
 - `artifacts/sft_stage1`
 - `artifacts/sft_stage2`
 - `artifacts/cosmos_rl_logs`
+- `artifacts/cosmos_rl_train_output`（RL checkpoint 输出，`ALPAMAYO_RL_OUTPUT_DIR`）
 - `artifacts/rl_exported_model`
 
 ## 2. Hugging Face 权限
@@ -57,6 +62,7 @@ source scripts/setup_local_env.sh
 
 - [PhysicalAI-Autonomous-Vehicles](https://huggingface.co/datasets/nvidia/PhysicalAI-Autonomous-Vehicles)
 - [Alpamayo-R1-10B](https://huggingface.co/nvidia/Alpamayo-R1-10B)
+- 转换训练态目录时还会拉取 VLM 权重 [Cosmos-Reason2-8B](https://huggingface.co/nvidia/Cosmos-Reason2-8B)（gated）
 - 如要试 `1.5` 的 RL，也要有 [Alpamayo-1.5-10B](https://huggingface.co/nvidia/Alpamayo-1.5-10B)
 
 然后登录：
@@ -145,36 +151,29 @@ export STAGE2_CKPT_DIR=/home/ubuntu/kevin/Alpamayo_15/alpamayo/artifacts/sft_sta
 bash scripts/eval_sft_stage2_single_h100.sh
 ```
 
-## 6. RL 最小可行流程
+## 6. RL 验证流程（推荐：单场景 overfit + 官方多卡拓扑）
 
-先说明限制：
+权威步骤与参数说明以 **`finetune/rl/README.md`** 为准：本地验证需要 **至少 5×80GB GPU**（1 个 policy 副本、`policy.parallelism.dp_shard_size=4`，再加 1 张卡跑 vLLM rollout）。
 
-- 上游官方 README 的本地 RL 验证要求至少 `5x 80GB GPU`
-- 当前 `finetune/rl/toml/alpamayo_rvla_rl_single_h100_experimental.toml` 只是单卡实验配置
-- 它的目标是验证 Cosmos-RL、vLLM、reward、数据管道和 checkpoint 导出链路是否能启动
+若只想确认「RL 管线能跑、reward/GRPO 在转」，不必用完整 mini 集：先只保留 **1 条 clip** 做 overfit，仍使用与 README **相同的** `cosmos-rl ... alpamayo_cosmos_rl_post_training_entry.py` 启动方式。
 
 运行前请确认：
 
-- `ALPAMAYO_MODEL_DIR` 指向训练态 R1 checkpoint 目录
-- `ALPAMAYO_PAI_LOCAL_DIR` 内存在 `clip_index_mini.parquet`
+- 已完成 §4，`ALPAMAYO_MODEL_DIR` 与 `ALPAMAYO_PAI_LOCAL_DIR` 有效
+- 机器 GPU 数：**推荐 5 张**；若只有 **4×80G**，脚本会默认使用 `ALPAMAYO_RL_POLICY_DP_SHARD=3`（仍要求 4 张卡：3 policy + 1 rollout），属减_shard 折中，不保证与官方数值一致
+- （可选）`ALPAMAYO_RL_OUTPUT_DIR`、`ALPAMAYO_RL_HYDRA_CONFIG`（R1：`alpamayo1_rvla_rl_pai`；1.5：`alpamayo1_5_rvla_rl_pai`）
+- （可选）`ALPAMAYO_RL_CLIP_INDEX`：默认 `clip_index_overfit_one.parquet`
 
 执行：
 
 ```bash
-bash scripts/run_rl_single_h100_experimental.sh
+bash scripts/prepare_rl_overfit_one_scene.sh
+bash scripts/run_rl_overfit_one_scene.sh
 ```
 
-建议观察：
+成功时可观察 `artifacts/cosmos_rl_logs/logs_*/` 下的 `controller.log`、`policy_0.log`、`rollout_0.log`（与 README 描述一致）。
 
-- `controller.log`
-- `policy_0.log`
-- `rollout_0.log`
-
-如果单卡仍然显存不足，可继续降低：
-
-- `rollout.gpu_memory_utilization`
-- `rollout.n_generation`
-- `train.train_batch_per_replica`
+**不再推荐**：`run_rl_single_h100_experimental.sh` / `alpamayo_rvla_rl_single_h100_experimental.toml`（单卡 policy 易 OOM）。
 
 ## 7. 导出 RL checkpoint
 
@@ -250,4 +249,4 @@ docker compose -f ../../eval_ar1_custom/docker-compose.yaml up --abort-on-contai
 4. `run_sft_stage2_single_h100.sh`
 5. `eval_sft_stage2_single_h100.sh`
 6. 将 Stage 2 产物接入 `alpasim`
-7. 把 RL 作为单独实验线推进，不要指望单卡直接替代官方 5 卡本地验证
+7. 把 RL 作为单独实验线推进；验证请用 README 多卡拓扑 + 必要时单场景 overfit（`run_rl_overfit_one_scene.sh`）
